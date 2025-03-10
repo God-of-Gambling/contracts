@@ -1,0 +1,11 @@
+# dependencies
+/node_modules
+
+# solodity
+/cache
+
+# local env files
+.env*.local
+.env
+
+*.DS_Store
