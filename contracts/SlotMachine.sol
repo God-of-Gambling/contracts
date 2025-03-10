@@ -218,7 +218,7 @@ contract SlotMachine is ReentrancyGuard {
 
     function _random(uint256 mod, uint256 _seed) internal view returns(uint){
         uint rand = uint(            
-            keccak256(abi.encodePacked(msg.sender, blockhash(block.number - 1), _seed))  // , block.prevrandao
+            keccak256(abi.encodePacked(msg.sender, blockhash(block.number - 1), block.prevrandao, _seed))
         ) % mod;        
         return rand;        
     }
