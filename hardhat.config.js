@@ -21,24 +21,31 @@ module.exports = {
     'hardhat': {      
       chainId: 1337     
     },
+    'monad-testnet': {
+      url: 'https://testnet-rpc.monad.xyz',
+      chainId: 10143,
+      accounts: [PRIVATE_KEY],
+      timeout: 120000,
+      allowUnlimitedContractSize: true,
+    },
     // 'ink': {
     //   url: 'https://rpc-gel.inkonchain.com',
     //   chainId: 57073,
     //   accounts: [PRIVATE_KEY],
     //   allowUnlimitedContractSize: true,
     // },
-    // 'superseed-sepolia': {
-    //   url: 'https://sepolia.superseed.xyz',
-    //   chainId: 53302,
-    //   accounts: [PRIVATE_KEY],
-    //   allowUnlimitedContractSize: true
-    // },
-    // 'soneium-minato': {
-    //   url: 'https://rpc.minato.soneium.org',
-    //   chainId: 1946,
-    //   accounts: [PRIVATE_KEY],
-    //   allowUnlimitedContractSize: true
-    // }
+    'superseed-sepolia': {
+      url: 'https://sepolia.superseed.xyz',
+      chainId: 53302,
+      accounts: [PRIVATE_KEY],
+      allowUnlimitedContractSize: true
+    },
+    'soneium-minato': {
+      url: 'https://rpc.minato.soneium.org',
+      chainId: 1946,
+      accounts: [PRIVATE_KEY],
+      allowUnlimitedContractSize: true
+    }
   },
   etherscan: {
     enabled: true,
@@ -67,6 +74,8 @@ module.exports = {
   },
   sourcify: {
     enabled: false,
+    apiUrl: "https://sourcify-api-monad.blockvision.org",
+    browserUrl: "https://testnet.monadexplorer.com"
   },
   paths: {
     sources: "./contracts",

@@ -3,10 +3,6 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { time, loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
 
-// import { expect } from "chai";
-// import { ethers } from "hardhat";
-// import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-
 const AddressZero = '0x0000000000000000000000000000000000000000'
 
 describe("SlotMachine", function () {
@@ -15,8 +11,7 @@ describe("SlotMachine", function () {
         const [owner, admin, guardian, player1, player2] = await ethers.getSigners();
         const minBetValue = ethers.parseEther("1");
         const maxBetValue = ethers.parseEther("100");
-         // Triển khai ERC20 token
-         // Deploy mock ERC20 token
+
         const Token = await ethers.getContractFactory("MockERC20");
         const token = await Token.deploy("Game Token", "GAME", 18);
         await token.waitForDeployment();

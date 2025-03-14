@@ -151,7 +151,7 @@ contract SlotMachine is ReentrancyGuard {
     }
 
     function placeBet(uint256 amount, uint256 _timestamp, bytes calldata signature) external notLocked nonReentrant {
-        require(amount >= minBetValue, "The bet amount must be greater than the minimum required value.");
+        require(amount >= minBetValue, "The bet amount must be greater than the minimum required value");
         require(amount <= maxBetValue, "Bet exceeds maximum limit");
         
         uint256 maxPotentialPayout = amount * maxRewardMultiply;
