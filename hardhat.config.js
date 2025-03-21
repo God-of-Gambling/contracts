@@ -48,7 +48,7 @@ module.exports = {
     }
   },
   etherscan: {
-    enabled: true,
+    enabled: false,
     apiKey: {
       'soneium-minato': '7a04062b-373e-47a7-b52e-6bd9d484a33b',
       'superseed-sepolia': ''
@@ -73,7 +73,7 @@ module.exports = {
     ]
   },
   sourcify: {
-    enabled: false,
+    enabled: true,
     apiUrl: "https://sourcify-api-monad.blockvision.org",
     browserUrl: "https://testnet.monadexplorer.com"
   },

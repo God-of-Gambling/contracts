@@ -7,25 +7,12 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-contract Highlow is ReentrancyGuard {
+// import "hardhat/console.sol";
+
+contract Plinko is ReentrancyGuard {
 
     using ECDSA for bytes32;
     using SafeERC20 for IERC20;
-
-    enum BetType {
-        HIGH,
-        LOW
-    }
-
-    struct Card {
-        uint id;
-        uint value;
-    }
-
-    struct Player {
-        uint ssid;
-        Card refferalCard;
-    }
 
     struct Bet {
         address user;
@@ -50,6 +37,10 @@ contract Highlow is ReentrancyGuard {
 
     uint256 public maxiumBetValue;
     uint256 public miniumBetValue;
+    uint256 public maxiumBetPerBall;
+    uint256 public maxiumPlacedBall;
+
+    uint256[] public rewards;
 
     bool public isLocked = false;
 
@@ -64,16 +55,11 @@ contract Highlow is ReentrancyGuard {
     );
 
     bytes32 private immutable DOMAIN_SEPARATOR;
-    uint256 public immutable rewardMultiply;
+    uint256 public immutable maxRewardMultiply;
 
-    Card[13] cards;
-
-    mapping(address => Player) players;
-
-    event StartGame(uint ssid, Card card);
     event WithdrawFund(address to, uint256 amount);
     event WithdrawFundRequested(uint256 requestTime);
-    event Result(address user, uint ssid, Card betCard, Card nextCard, uint256 amount);
+    event Result(address user, uint[] balls, uint256 amount);
     event ContractLocked(address by);
     event ContractUnlocked(address by);
     event AdminChangeRequested(address newAdmin, uint256 requestTime);
@@ -116,31 +102,22 @@ contract Highlow is ReentrancyGuard {
         maxiumBetValue = _maxBetValue;
         miniumBetValue = _minBetValue;
 
-        rewardMultiply = 2;
+        uint8 tk_decimals = IERC20Metadata(address(token)).decimals();
+        maxiumBetPerBall = 1 * 10 ** tk_decimals;
+        maxiumPlacedBall = 5;
+
+        rewards = [0, 10, 11, 21, 56];
+        maxRewardMultiply = 56;
 
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 DOMAIN_TYPEHASH,
-                keccak256(bytes("Highlow")),
+                keccak256(bytes("Plinko")),
                 keccak256(bytes("1")),
                 block.chainid,
                 address(this)
             )
         );
-        
-        cards[0] = Card(1, 11);
-        cards[1] = Card(2, 2);
-        cards[2] = Card(3, 3);
-        cards[3] = Card(4, 4);
-        cards[4] = Card(5, 5);
-        cards[5] = Card(6, 6);
-        cards[6] = Card(7, 7);
-        cards[7] = Card(8, 8);
-        cards[8] = Card(9, 9);
-        cards[9] = Card(10, 10);
-        cards[10] = Card(11, 10);
-        cards[11] = Card(12, 10);
-        cards[12] = Card(13, 10);
     }
 
     function _hashBet(Bet memory bet) internal pure returns (bytes32) {
@@ -165,40 +142,17 @@ contract Highlow is ReentrancyGuard {
         return ECDSA.recover(digest, signature) == admin;
     }
 
-    function startGame(uint256 _timestamp, bytes calldata signature) external notLocked {
-        // Check timestamp
-        require(block.timestamp >= _timestamp, "Timestamp from the future");
-        require(block.timestamp <= _timestamp + 60, "Timestamp expired");
-        require(_timestamp > lastTimestamp[msg.sender], "Timestamp must be newer");
-
-        uint8 decimals = IERC20Metadata(address(token)).decimals();
-
-        Bet memory bet = Bet({
-            user: msg.sender,
-            amount: 1 * 10 ** decimals,
-            timestamp: _timestamp
-        });
-        
-        require(_verifySignature(bet, signature), "Invalid signature");
-
-        lastTimestamp[msg.sender] = _timestamp;
-
-        uint ssid = _random(100000, _timestamp);
-
-        Card memory _refferalCard = _randomRefferalCard(_timestamp);
-
-        players[msg.sender] = Player(ssid, _refferalCard);
-
-        emit StartGame(ssid, _refferalCard);
-    }
-
-    function placeBet(uint _ssid, BetType _betType, uint256 _amount, uint256 _timestamp, bytes calldata signature) payable external notLocked {
+    function placeBet(uint256 _numBall, uint256 _amount, uint256 _timestamp, bytes calldata signature) payable external notLocked {
         require(_amount >= miniumBetValue, "The bet amount must be greater than the minimum required value");
         require(_amount <= maxiumBetValue, "Bet exceeds maximum limit");
-      
-        require(_ssid == players[msg.sender].ssid, "The session is not match");
+        require(_numBall > 0, "The number of balls must be greater than 0");
+        require(_numBall <= maxiumPlacedBall, "The maximum allowed number of balls has been reached");
 
-        uint256 maxPotentialPayout = _amount * rewardMultiply;
+        uint256 betPerBall = _amount / _numBall;
+
+        require(betPerBall <= maxiumBetPerBall, "The bet amount per ball cannot exceed the allowed limit");
+
+        uint256 maxPotentialPayout = (_amount * maxRewardMultiply) / 10;
         require(token.balanceOf(address(this)) >= maxPotentialPayout, "Contract has insufficient funds");
         
         // Check timestamp
@@ -217,22 +171,15 @@ contract Highlow is ReentrancyGuard {
         lastTimestamp[msg.sender] = _timestamp;
         token.safeTransferFrom(msg.sender, address(this), _amount);
 
-        Card memory _refferalCard = players[msg.sender].refferalCard;
-        Card memory _betCard = generateBetCard(_refferalCard, _betType, _timestamp);
-        Card memory _nextCard = _randomRefferalCard(_timestamp);
-        uint _nextSsid = _random(100000, _timestamp);
-        uint256 rewardAmount = 0;
-
-        if ((_betType == BetType.HIGH && _refferalCard.value > _betCard.value) || (_betType == BetType.LOW && _refferalCard.value < _betCard.value)) {
-            rewardAmount = _amount * rewardMultiply;
-        }
+        uint[] memory balls = generateBalls(_numBall, _timestamp);
+        
+        uint256 rewardAmount = _calculateWinnings(betPerBall, balls);
 
         uint256 maxPayout = token.balanceOf(address(this));
         if (rewardAmount > maxPayout) {
             rewardAmount = 0;
             token.safeTransfer(msg.sender, _amount);
-            emit Result(msg.sender, _nextSsid, _betCard, _nextCard, rewardAmount);
-            players[msg.sender] = Player(_nextSsid, _nextCard);
+            emit Result(msg.sender, balls, rewardAmount);
             return;
         }
 
@@ -240,68 +187,36 @@ contract Highlow is ReentrancyGuard {
             token.safeTransfer(msg.sender, rewardAmount);
         }
 
-        emit Result(msg.sender, _nextSsid, _betCard, _nextCard, rewardAmount);
-        players[msg.sender] = Player(_nextSsid, _nextCard);
+        emit Result(msg.sender, balls, rewardAmount);
     }
 
-    function generateBetCard(Card memory _refferalCard, BetType _betType, uint256 _timestamp) internal view returns(Card memory) {
-        Card memory _betCard;
-
-        uint256 randomChance = _random(100, _timestamp);
-        bool w = randomChance < winProbability;
-
-        uint count = 0;
-        uint cardsLen = cards.length;
-        Card[] memory _betCards = new Card[](cardsLen);
-
-        if (w) {
-            if (_betType == BetType.HIGH) {                
-                for (uint i = 0; i < cardsLen; i++) {
-                    if (cards[i].value < _refferalCard.value) {
-                        _betCards[count] = cards[i];
-                        count++;
-                    }
-                }
-            } else {
-                for (uint i = 0; i < cardsLen; i++) {
-                    if (cards[i].value > _refferalCard.value) {
-                        _betCards[count] = cards[i];
-                        count++;
-                    }
-                }
-            }
-        } else {
-            if (_betType == BetType.HIGH) {                
-                for (uint i = 0; i < cardsLen; i++) {
-                    if (cards[i].value >= _refferalCard.value) {
-                        _betCards[count] = cards[i];
-                        count++;
-                    }
-                }
-            } else {
-                for (uint i = 0; i < cardsLen; i++) {
-                    if (cards[i].value <= _refferalCard.value) {
-                        _betCards[count] = cards[i];
-                        count++;
-                    }
-                }
-            }
+    function _calculateWinnings(uint256 ballBet, uint[] memory _balls) internal view returns(uint256) {
+        uint256 reward = 0;
+        uint ballsLen = _balls.length;
+        for (uint i = 0; i < ballsLen; i++) {
+            reward = reward + ((ballBet * rewards[_balls[i]]) / 10);
         }
-         // set random bet card
-        if (count == 0) {
-            _betCard = cards[_random(cards.length, _timestamp)]; 
-        } else if (count == 1) {
-            _betCard = _betCards[0];
-        } else {
-            _betCard = _betCards[_random(count, _timestamp)];
-        }
-
-        return _betCard;
+        return reward;
     }
 
-    function _randomRefferalCard(uint256 _timestamp) internal view returns(Card memory){
-        Card memory _refferalCard = cards[_random(4, _timestamp) + 4]; // only random from 4 -> 8
-        return _refferalCard;
+    function generateBalls(uint256 _numBall, uint256 _timestamp) internal view returns(uint[] memory) { 
+        uint[] memory balls = new uint[](_numBall);
+
+        uint256[3] memory _wList = [uint256(4), uint256(2), uint256(3)];
+        uint256[2] memory _lList = [uint256(1), uint256(0)];
+
+        for (uint i = 0; i < _numBall; i++) {
+            uint _rand = _random(1000, i + 2);
+            uint256 randomChance = _random(100, _timestamp + _rand);
+            bool w = randomChance < winProbability;
+            if (w) {
+                balls[i] = _wList[_random(3, _timestamp + _rand)];
+            } else {
+                balls[i] = _lList[_random(2, _timestamp + _rand)];
+            }
+        }
+        
+        return balls;
     }
 
     function _random(uint256 mod, uint256 _seed) internal view returns(uint){

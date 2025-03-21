@@ -85,7 +85,6 @@ contract Baccarat is ReentrancyGuard {
     event ChangedMinBetValue(address admin, uint256 minBetValue);
     event ChangedMaxBetValue(address admin, uint256 maxBetValue);
     event WithdrawFundCancelled();
-    event SeedReelsChanged(uint256[3] seedReels);
     event WinProbabilityRequested(uint winProbability);
     event WinProbabilityChangeCancelled();
     event WinProbabilityChanged(uint winProbability);
